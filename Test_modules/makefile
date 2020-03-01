@@ -13,7 +13,7 @@ INCLUDE_DIR = ../Include
 VPATH += $(SOURCE_DIR)
 
 
-CXXFLAGS += -g -std=c++17
+CXXFLAGS += -g -std=c++2a
 CXXFLAGS += -I $(INCLUDE_DIR) -I $(GTEST_DIR)/googletest/include -I $(GTEST_DIR)/googlemock/include 
 # -------------------------------------#
 

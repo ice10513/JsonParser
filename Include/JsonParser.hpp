@@ -4,22 +4,23 @@
 #include <optional>
 #include <iostream>
 #include <variant>
+#include "JsonException.hpp"
 
-namespace Josn
+namespace Json
 {
 class Parser
 {
     using ValueType = std::variant<int, std::string>;
 public:
-    bool parse(std::string p_content)
+    void parse(std::string p_content)
     {
         m_content = std::move(p_content);
 
         auto l_entry = getJosnEntry();
-        if (!l_entry)
+        if (!l_entry)  // TODO move this judge to method getJsonEntry
         {
             std::cout << "Not include invalid entry char\n";
-            return false;
+            throw JsonMissingEntry();
         }
 
         switch (*l_entry)
@@ -32,33 +33,39 @@ public:
             case '{':
             {
                 m_boundStack.push(*l_entry);
-                return parseDict();
+                parseDict();
                 break;
             }
             default:
             {
-                std::cout << "Not a valid entry with char: " << *l_entry << std::endl;
-                return false;
+                throw JsonInvalidEntry();
             }
+        }
+
+        if (!m_boundStack.empty())
+        {
+            std::cout << "The [] or {} not matched" << std::endl;
+            throw JsonMismatchedEndBrackets();
         }
     }
 
 private:
-    bool parseDict()
+    void parseDict()
     {
         bool l_hasNextPair = false;
         while (!isEof())
         {
-            auto l_ch = getNextChar();
+            auto l_ch = getNextChar();   // TODO 这里的逻辑是否欠考虑？是否可以更平滑一些？
             if (l_ch == '}')
             {
                 if (l_hasNextPair)
                 {
                     std::cout << "There has a extra comma" << std::endl;
-                    return false;
+                    throw JsonExtraComma();
                 }
 
-                return true;
+                m_boundStack.pop();
+                return;
             }
             
             if (l_ch != '"')
@@ -70,17 +77,14 @@ private:
 
             if (getLastChar() == '}')
             {
-                l_hasNextPair = false;
-                break;
+                m_boundStack.pop();
+                return;
             }
             l_hasNextPair = true;
         }
-
-        return true;
     }
 
-
-    bool parseThePair()
+    void parseThePair()
     {
         std::string l_key = getKey();
         skipColon();
@@ -91,28 +95,18 @@ private:
     std::string getKey()
     {
         std::string l_key;
-        char l_ch{};
         while (!isEof())
         {
-            l_ch = getNextChar();
-    
-            //TODO 暂时跳过转义字符
-            if (l_ch == '"')
+            auto l_ch = getNextChar();
+            if (l_ch == '"' && l_key.back() != '\\')
             {
-                break;
+                return l_key;
             }
-            else
-            {
-                l_key += l_ch;
-            }
+
+            l_key += l_ch;
         }
 
-        if (l_ch != '"')
-        {
-            //TODO 异常处理
-        }
-
-        return l_key;
+        throw JsonMissingRightQuotes();
     }
 
     void skipColon()
@@ -127,7 +121,7 @@ private:
             }
         }
 
-        //TODO 找不到冒号时，异常处理
+        throw JsonMissingColon();
     }
 
     std::string getValue()
